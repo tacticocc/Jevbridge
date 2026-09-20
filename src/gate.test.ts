@@ -57,3 +57,54 @@ test("noul without destructiveId is not treated as destructive", () => {
   assert.equal(decision.destructive, undefined);
   assert.equal(decision.action, "execute");
 });
+
+test("explicit undefined thresholds keep defaults so a peaked choice executes", () => {
+  const answers: Answers = {
+    next_action: {
+      type: "choice",
+      choice: "click",
+      confidence: 0.91,
+      probabilities: { click: 0.91, abort: 0.09 },
+    },
+  };
+  assert.equal(
+    gate(answers, {
+      choiceId: "next_action",
+      executeAbove: undefined,
+      confirmAbove: undefined,
+      abortBelow: undefined,
+    }).action,
+    "execute",
+  );
+});
+
+test("high-confidence destructive action confirms", () => {
+  const answers: Answers = {
+    next_action: {
+      type: "choice",
+      choice: "click",
+      confidence: 0.95,
+      probabilities: { click: 0.95, abort: 0.05 },
+    },
+    is_destructive: { type: "noul", noul: 1 },
+  };
+  assert.equal(
+    gate(answers, { choiceId: "next_action", destructiveId: "is_destructive" }).action,
+    "confirm",
+  );
+});
+
+test("is_destructive noul is gated even without destructiveId", () => {
+  const answers: Answers = {
+    next_action: {
+      type: "choice",
+      choice: "click",
+      confidence: 0.95,
+      probabilities: { click: 0.95, abort: 0.05 },
+    },
+    is_destructive: { type: "noul", noul: 1 },
+  };
+  const decision = gate(answers, { choiceId: "next_action" });
+  assert.equal(decision.action, "confirm");
+  assert.equal(decision.destructive, 1);
+});

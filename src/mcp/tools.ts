@@ -246,12 +246,12 @@ export async function callMcpTool(name: string, rawArgs: unknown): Promise<McpTo
         choiceId: stringArg(args.choiceId),
         noulId: stringArg(args.noulId),
         destructiveId: stringArg(args.destructiveId),
-        executeAbove: typeof args.executeAbove === "number" ? args.executeAbove : undefined,
-        confirmAbove: typeof args.confirmAbove === "number" ? args.confirmAbove : undefined,
-        abortBelow: typeof args.abortBelow === "number" ? args.abortBelow : undefined,
-        abortChoices: Array.isArray(args.abortChoices) ? (args.abortChoices as string[]) : undefined,
-        doneChoices: Array.isArray(args.doneChoices) ? (args.doneChoices as string[]) : undefined,
       };
+      if (typeof args.executeAbove === "number") policy.executeAbove = args.executeAbove;
+      if (typeof args.confirmAbove === "number") policy.confirmAbove = args.confirmAbove;
+      if (typeof args.abortBelow === "number") policy.abortBelow = args.abortBelow;
+      if (Array.isArray(args.abortChoices)) policy.abortChoices = args.abortChoices as string[];
+      if (Array.isArray(args.doneChoices)) policy.doneChoices = args.doneChoices as string[];
       return ok(gate(asAnswers(args.answers), policy));
     }
     if (name === "jev_computer_use") {
