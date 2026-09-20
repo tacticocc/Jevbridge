@@ -222,6 +222,8 @@ node bin/jevbridge.mjs eval destructive-gate
 
 `backend: "auto"` uses Jev when a TypeSafe key is present, otherwise the LLM adapter, otherwise heuristic.
 
+With no API key, `auto` falls back to the local keyword scorer. The payload reports `"backend": "heuristic"`. That scorer includes question text in its evidence, so asking "would this spend money, delete data, or submit a form?" about `"hello world"` can still score high from word overlap. Treat heuristic numbers as a smoke test, not a safety signal.
+
 _For more examples, see `src/recipes.ts` and `skills/jevbridge/SKILL.md`._
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -351,7 +353,7 @@ Computer-use loops waste frontier tokens on “what should I click.” Jevbridge
 
 `click` · `type` · `scroll` · `wait` · `screenshot` · `done` · `abort`
 
-plus target, safety, destructiveness, and goal progress. A refund button that spends money comes back `confirm`, not `execute`.
+plus target, safety, destructiveness, and goal progress. A refund button that spends money comes back `confirm`, not `execute` — destructiveness is an independent gate, so a peaked action distribution does not skip it.
 
 ```ts
 import { computerUseQuestions, observationState, readAction } from "./src/index.ts";

@@ -20,6 +20,12 @@ const DEFAULT: Required<Omit<GatePolicy, "choiceId" | "noulId" | "destructiveId"
   doneChoices: ["done", "complete"],
 };
 
+/** Noul ids treated as a destructiveness signal when `destructiveId` is omitted. */
+const DESTRUCTIVE_IDS = ["is_destructive", "destructive"] as const;
+
+/** Independent of how peaked the action distribution is. */
+const DESTRUCTIVE_ABOVE = 0.62;
+
 function pickChoice(answers: Answers, id?: string): ChoiceAnswer | undefined {
   if (id && answers[id]?.type === "choice") return answers[id] as ChoiceAnswer;
   return Object.values(answers).find((a): a is ChoiceAnswer => a.type === "choice");
@@ -28,6 +34,18 @@ function pickChoice(answers: Answers, id?: string): ChoiceAnswer | undefined {
 function pickNoul(answers: Answers, id?: string): NoulAnswer | undefined {
   if (id && answers[id]?.type === "noul") return answers[id] as NoulAnswer;
   return Object.values(answers).find((a): a is NoulAnswer => a.type === "noul");
+}
+
+function pickDestructive(answers: Answers, id?: string): number | undefined {
+  if (id) {
+    const named = answers[id];
+    return named?.type === "noul" ? named.noul : undefined;
+  }
+  for (const key of DESTRUCTIVE_IDS) {
+    const ans = answers[key];
+    if (ans?.type === "noul") return ans.noul;
+  }
+  return undefined;
 }
 
 function confidenceOf(answers: Answers, policy: GatePolicy): { value: number; choice?: string } {
@@ -41,13 +59,13 @@ function confidenceOf(answers: Answers, policy: GatePolicy): { value: number; ch
 }
 
 export function gate(answers: Answers, policy: GatePolicy = {}): GateDecision {
-  const p = { ...DEFAULT, ...policy };
-  const { value: confidence, choice } = confidenceOf(answers, p);
-  const destructive = p.destructiveId
-    ? pickNoul(answers, p.destructiveId)?.noul
-    : undefined;
-  const abortChoices = p.abortChoices ?? DEFAULT.abortChoices;
-  const doneChoices = p.doneChoices ?? DEFAULT.doneChoices;
+  const executeAbove = policy.executeAbove ?? DEFAULT.executeAbove;
+  const confirmAbove = policy.confirmAbove ?? DEFAULT.confirmAbove;
+  const abortBelow = policy.abortBelow ?? DEFAULT.abortBelow;
+  const abortChoices = policy.abortChoices ?? DEFAULT.abortChoices;
+  const doneChoices = policy.doneChoices ?? DEFAULT.doneChoices;
+  const { value: confidence, choice } = confidenceOf(answers, policy);
+  const destructive = pickDestructive(answers, policy.destructiveId);
 
   if (choice && abortChoices.includes(choice)) {
     return { action: "abort", reason: `Jev selected ${choice}.`, confidence, choice, destructive };
@@ -55,7 +73,7 @@ export function gate(answers: Answers, policy: GatePolicy = {}): GateDecision {
   if (choice && doneChoices.includes(choice)) {
     return { action: "execute", reason: "Goal complete.", confidence, choice, destructive };
   }
-  if (confidence < p.abortBelow) {
+  if (confidence < abortBelow) {
     return {
       action: "abort",
       reason: "Confidence is too low to act or confirm.",
@@ -64,7 +82,7 @@ export function gate(answers: Answers, policy: GatePolicy = {}): GateDecision {
       destructive,
     };
   }
-  if (destructive !== undefined && destructive >= 0.62 && confidence < 0.88) {
+  if (destructive !== undefined && destructive >= DESTRUCTIVE_ABOVE) {
     return {
       action: "confirm",
       reason: "Action looks destructive. Ask before executing.",
@@ -73,7 +91,7 @@ export function gate(answers: Answers, policy: GatePolicy = {}): GateDecision {
       destructive,
     };
   }
-  if (confidence >= p.executeAbove) {
+  if (confidence >= executeAbove) {
     return {
       action: "execute",
       reason: "Distribution is peaked enough to act.",
@@ -82,7 +100,7 @@ export function gate(answers: Answers, policy: GatePolicy = {}): GateDecision {
       destructive,
     };
   }
-  if (confidence >= p.confirmAbove) {
+  if (confidence >= confirmAbove) {
     return {
       action: "confirm",
       reason: "Plausible, but not peaked. Request permission.",

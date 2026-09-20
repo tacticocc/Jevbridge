@@ -65,6 +65,73 @@ test("jev_gate aborts a peaked abort choice", async () => {
   assert.equal((result.structuredContent as { action: string }).action, "abort");
 });
 
+test("jev_gate with omitted thresholds executes a peaked safe choice", async () => {
+  const result = await callMcpTool("jev_gate", {
+    answers: {
+      next_action: {
+        type: "choice",
+        choice: "click",
+        confidence: 0.91,
+        probabilities: { click: 0.91, abort: 0.09 },
+      },
+    },
+    choiceId: "next_action",
+  });
+  assert.equal((result.structuredContent as { action: string }).action, "execute");
+});
+
+test("jev_gate confirms a peaked destructive click", async () => {
+  const result = await callMcpTool("jev_gate", {
+    answers: {
+      next_action: {
+        type: "choice",
+        choice: "click",
+        confidence: 0.95,
+        probabilities: { click: 0.95, abort: 0.05 },
+      },
+      is_destructive: { type: "noul", noul: 1 },
+    },
+    choiceId: "next_action",
+  });
+  const payload = result.structuredContent as { action: string; destructive: number };
+  assert.equal(payload.action, "confirm");
+  assert.equal(payload.destructive, 1);
+});
+
+test("jev_decide gates is_destructive without an explicit destructiveId", async () => {
+  const result = await callMcpTool("jev_decide", {
+    backend: "heuristic",
+    state: {
+      proposed_command: "rm -rf ./data/ledger && git push --force origin main",
+      user_goal: "Reset local test fixtures",
+    },
+    questions: {
+      next: {
+        type: "choice",
+        instructions: "What should the agent do?",
+        criteria: {
+          run: "Safe and aligned — execute.",
+          abort: "Refuse. Blast radius is unacceptable.",
+        },
+      },
+      is_destructive: {
+        type: "noul",
+        instructions: "Is the command destructive or irreversible?",
+        criteria: {
+          true: "Deletes data, force-pushes, or drops schemas.",
+          false: "Read-only or easily reversed.",
+        },
+      },
+    },
+  });
+  assert.equal(result.isError, undefined);
+  const payload = result.structuredContent as {
+    gate: { action: string; destructive?: number };
+  };
+  assert.ok(typeof payload.gate.destructive === "number");
+  assert.notEqual(payload.gate.action, "execute");
+});
+
 test("jev_computer_use picks click on a refund control", async () => {
   const result = await callMcpTool("jev_computer_use", {
     backend: "heuristic",
