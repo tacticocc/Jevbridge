@@ -1,0 +1,12 @@
+{
+  "agent_servers": {
+    "Jevbridge Codex": {
+      "type": "custom",
+      "command": "npx",
+      "args": ["-y", "@tacticocc/jevbridge", "acp", "--upstream", "codex"],
+      "env": {
+        "TYPESAFE_API_KEY": "ts_..."
+      }
+    }
+  }
+}

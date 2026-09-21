@@ -3,15 +3,19 @@ import { evaluate } from "./evaluate.ts";
 import { recipeById, RECIPES } from "./recipes.ts";
 import { gate } from "./gate.ts";
 import { serveAcp } from "./acp/stdio.ts";
+import { resolveUpstream } from "./acp/upstream.ts";
 import { serveMcp } from "./mcp/stdio.ts";
 
 const HELP = `Jevbridge — ACP + MCP adapter for TypeSafe Jev alongside any LLM
 
 Usage:
-  jevbridge mcp              Speak Model Context Protocol on stdio
-  jevbridge acp              Speak Agent Client Protocol on stdio
-  jevbridge eval <recipe>    Run a built-in recipe (heuristic if no keys)
-  jevbridge recipes          List recipes
+  jevbridge mcp                         Speak Model Context Protocol on stdio
+  jevbridge acp                         Speak Agent Client Protocol on stdio
+  jevbridge acp --upstream claude       Proxy Claude Code ACP and intercept tools
+  jevbridge acp --upstream codex        Proxy Codex ACP and intercept tools
+  jevbridge acp -- <command> [args...]  Proxy an arbitrary ACP agent
+  jevbridge eval <recipe>               Run a built-in recipe (heuristic if no keys)
+  jevbridge recipes                     List recipes
   jevbridge help
 
 Env:
@@ -19,6 +23,11 @@ Env:
   JEVBRIDGE_LLM              xai | openai | anthropic | opencode | codex | generic
   JEVBRIDGE_LLM_MODEL        Override model
   JEVBRIDGE_BASE_URL         Override OpenAI-compatible base URL
+  JEVBRIDGE_ACP_UPSTREAM     claude | codex
+  JEVBRIDGE_ACP_COMMAND      Custom upstream ACP command
+  JEVBRIDGE_ACP_ARGS         Extra args for JEVBRIDGE_ACP_COMMAND
+  JEVBRIDGE_SESSION_DIR      Persist ACP sessions (default ~/.jevbridge/sessions)
+  JEVBRIDGE_INTERCEPT        Set to 0 to disable tool-call intercept in proxy mode
   XAI_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY / OPENCODE_API_KEY
 `;
 
@@ -45,7 +54,7 @@ async function main() {
     return;
   }
   if (cmd === "acp") {
-    await serveAcp();
+    await serveAcp({ upstream: resolveUpstream(process.argv.slice(3), process.env) });
     return;
   }
   if (cmd === "mcp") {

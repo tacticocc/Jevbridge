@@ -12,7 +12,7 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/gamesonrblx/Jevbridge">
+  <a href="https://github.com/tacticocc/Jevbridge">
     <img src="brand/icon.png" alt="Jevbridge logo" width="180" height="180">
   </a>
 
@@ -24,14 +24,14 @@
     Computer use and typed decisions alongside Codex, Claude, Grok, and OpenCode.
     <br />
     <br />
-    <a href="https://github.com/gamesonrblx/Jevbridge"><strong>Explore the docs »</strong></a>
+    <a href="https://github.com/tacticocc/Jevbridge"><strong>Explore the docs »</strong></a>
     <br />
     <br />
-    <a href="https://github.com/gamesonrblx/Jevbridge">View Demo</a>
+    <a href="https://github.com/tacticocc/Jevbridge">View Demo</a>
     &middot;
-    <a href="https://github.com/gamesonrblx/Jevbridge/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
+    <a href="https://github.com/tacticocc/Jevbridge/issues/new?labels=bug&template=bug-report---.md">Report Bug</a>
     &middot;
-    <a href="https://github.com/gamesonrblx/Jevbridge/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
+    <a href="https://github.com/tacticocc/Jevbridge/issues/new?labels=enhancement&template=feature-request---.md">Request Feature</a>
   </p>
 </div>
 
@@ -73,7 +73,7 @@
 ## About The Project
 
 <div align="center">
-  <a href="https://github.com/gamesonrblx/Jevbridge">
+  <a href="https://github.com/tacticocc/Jevbridge">
     <img src="brand/icon.png" alt="Jevbridge" width="220" height="220">
   </a>
 </div>
@@ -89,7 +89,7 @@ Jevbridge is the adapter that sits **alongside** the LLM you already run.
 
 The LLM writes the plan and the explanation. Jevbridge returns `noul`, `choice`, and `score` answers that software can branch on.
 
-Intended home: [`tacticocc/Jevbridge`](https://github.com/tacticocc). This public repository is published from the connected GitHub account until it can be transferred into that organization.
+Home: [`tacticocc/Jevbridge`](https://github.com/tacticocc/Jevbridge).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -135,8 +135,12 @@ Jevbridge is a zero-dependency Node 22 library plus MCP and ACP stdio binaries. 
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/gamesonrblx/Jevbridge.git
+   git clone https://github.com/tacticocc/Jevbridge.git
    cd Jevbridge
+   ```
+   The npm name is `@tacticocc/jevbridge`. After a release is published:
+   ```sh
+   npm install -g @tacticocc/jevbridge
    ```
 2. Install (no runtime npm dependencies)
    ```sh
@@ -219,6 +223,11 @@ node bin/jevbridge.mjs eval destructive-gate
 | `OPENAI_API_KEY` | OpenAI / Codex |
 | `ANTHROPIC_API_KEY` | Claude |
 | `OPENCODE_API_KEY` | OpenCode |
+| `JEVBRIDGE_ACP_UPSTREAM` | `claude` or `codex` — proxy that ACP agent and intercept tool calls |
+| `JEVBRIDGE_ACP_COMMAND` | Custom upstream ACP command (alternative to the presets) |
+| `JEVBRIDGE_ACP_ARGS` | Extra args for `JEVBRIDGE_ACP_COMMAND` |
+| `JEVBRIDGE_SESSION_DIR` | Where ACP sessions are stored (default `~/.jevbridge/sessions`) |
+| `JEVBRIDGE_INTERCEPT` | Set to `0` to disable tool-call intercept in proxy mode |
 
 `backend: "auto"` uses Jev when a TypeSafe key is present, otherwise the LLM adapter, otherwise heuristic.
 
@@ -277,6 +286,9 @@ OpenCode (`opencode.json`) and Cursor (`.cursor/mcp.json`) live in `examples/`. 
 * `examples/cursor.mcp.json`
 * `examples/codex.config.toml`
 * `examples/opencode.json`
+* `examples/zed.settings.json`
+* `examples/zed.claude-proxy.json`
+* `examples/zed.codex-proxy.json`
 
 Example tool call:
 
@@ -334,12 +346,43 @@ Add to Zed `settings.json`:
 }
 ```
 
-On `session/prompt` the adapter:
+On `session/prompt` the sidecar:
 
 1. Classifies the turn (question, code edit, computer use, terminal).
 2. Calls Jev or the LLM System One adapter.
 3. Confidence-gates the result.
 4. Streams `session/update` tool calls and a short agent message.
+
+Sessions persist under `~/.jevbridge/sessions`. The adapter advertises `loadSession` plus `sessionCapabilities.resume` / `list` / `close` / `delete`, so Zed and other hosts can restore a thread with `session/load` (replay history) or `session/resume` (reconnect without replay).
+
+### Proxy an upstream agent
+
+Point Jevbridge at Claude Code or Codex. It speaks ACP to the host, forwards the generating agent, and intercepts `session/request_permission` plus pending `tool_call` notifications. Jevbridge then **allows**, **asks the user**, or **denies** the call.
+
+```sh
+jevbridge acp --upstream claude
+jevbridge acp --upstream codex
+jevbridge acp -- /path/to/custom-acp-agent
+```
+
+Zed `settings.json` (Codex behind Jevbridge):
+
+```json
+{
+  "agent_servers": {
+    "Jevbridge Codex": {
+      "type": "custom",
+      "command": "npx",
+      "args": ["-y", "@tacticocc/jevbridge", "acp", "--upstream", "codex"],
+      "env": {
+        "TYPESAFE_API_KEY": "ts_..."
+      }
+    }
+  }
+}
+```
+
+Presets spawn `npx -y @agentclientprotocol/claude-agent-acp` and `npx -y @agentclientprotocol/codex-acp`. Destructive execute/delete/edit/move calls that Jev aborts are failed in the client and cancelled upstream.
 
 Codex, Claude Code, Grok Build, and OpenCode keep generating. Jevbridge decides.
 
@@ -385,12 +428,12 @@ const action = readAction(result.answers);
 - [x] Computer-use recipes
 - [x] ACP stdio adapter (`initialize`, `session/new`, `session/prompt`)
 - [x] MCP stdio server (`jev_decide`, `jev_gate`, `jev_computer_use`, `jev_recipe`)
-- [ ] Proxy an upstream ACP agent (Claude Code, Codex) and intercept tool calls
-- [ ] Session load / resume
+- [x] Proxy an upstream ACP agent (Claude Code, Codex) and intercept tool calls
+- [x] Session load / resume
 - [ ] Published npm package `@tacticocc/jevbridge`
-- [ ] Transfer this repository into the `tacticocc` organization
+- [x] Transfer this repository into the `tacticocc` organization
 
-See the [open issues](https://github.com/gamesonrblx/Jevbridge/issues) for a full list of proposed features (and known issues).
+See the [open issues](https://github.com/tacticocc/Jevbridge/issues) for a full list of proposed features (and known issues).
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -416,8 +459,8 @@ Please add or update tests under `src/*.test.ts` for behavioral changes.
 
 ### Top contributors:
 
-<a href="https://github.com/gamesonrblx/Jevbridge/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=gamesonrblx/Jevbridge" alt="contrib.rocks image" />
+<a href="https://github.com/tacticocc/Jevbridge/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=tacticocc/Jevbridge" alt="contrib.rocks image" />
 </a>
 
 
@@ -436,7 +479,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 Tactico — [github.com/tacticocc](https://github.com/tacticocc)
 
-Project Link: [https://github.com/gamesonrblx/Jevbridge](https://github.com/gamesonrblx/Jevbridge)
+Project Link: [https://github.com/tacticocc/Jevbridge](https://github.com/tacticocc/Jevbridge)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
@@ -458,16 +501,16 @@ Project Link: [https://github.com/gamesonrblx/Jevbridge](https://github.com/game
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-[contributors-shield]: https://img.shields.io/github/contributors/gamesonrblx/Jevbridge.svg?style=for-the-badge
-[contributors-url]: https://github.com/gamesonrblx/Jevbridge/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/gamesonrblx/Jevbridge.svg?style=for-the-badge
-[forks-url]: https://github.com/gamesonrblx/Jevbridge/network/members
-[stars-shield]: https://img.shields.io/github/stars/gamesonrblx/Jevbridge.svg?style=for-the-badge
-[stars-url]: https://github.com/gamesonrblx/Jevbridge/stargazers
-[issues-shield]: https://img.shields.io/github/issues/gamesonrblx/Jevbridge.svg?style=for-the-badge
-[issues-url]: https://github.com/gamesonrblx/Jevbridge/issues
-[license-shield]: https://img.shields.io/github/license/gamesonrblx/Jevbridge.svg?style=for-the-badge
-[license-url]: https://github.com/gamesonrblx/Jevbridge/blob/main/LICENSE
+[contributors-shield]: https://img.shields.io/github/contributors/tacticocc/Jevbridge.svg?style=for-the-badge
+[contributors-url]: https://github.com/tacticocc/Jevbridge/graphs/contributors
+[forks-shield]: https://img.shields.io/github/forks/tacticocc/Jevbridge.svg?style=for-the-badge
+[forks-url]: https://github.com/tacticocc/Jevbridge/network/members
+[stars-shield]: https://img.shields.io/github/stars/tacticocc/Jevbridge.svg?style=for-the-badge
+[stars-url]: https://github.com/tacticocc/Jevbridge/stargazers
+[issues-shield]: https://img.shields.io/github/issues/tacticocc/Jevbridge.svg?style=for-the-badge
+[issues-url]: https://github.com/tacticocc/Jevbridge/issues
+[license-shield]: https://img.shields.io/github/license/tacticocc/Jevbridge.svg?style=for-the-badge
+[license-url]: https://github.com/tacticocc/Jevbridge/blob/main/LICENSE
 [TypeScript]: https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white
 [TypeScript-url]: https://www.typescriptlang.org/
 [Node.js]: https://img.shields.io/badge/Node.js_22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white

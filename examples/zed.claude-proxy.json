@@ -1,0 +1,12 @@
+{
+  "agent_servers": {
+    "Jevbridge Claude": {
+      "type": "custom",
+      "command": "npx",
+      "args": ["-y", "@tacticocc/jevbridge", "acp", "--upstream", "claude"],
+      "env": {
+        "TYPESAFE_API_KEY": "ts_..."
+      }
+    }
+  }
+}

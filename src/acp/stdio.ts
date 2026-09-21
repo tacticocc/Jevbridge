@@ -1,185 +1,93 @@
-import { randomUUID } from "node:crypto";
+import { spawn } from "node:child_process";
 import process from "node:process";
-import { evaluate } from "../evaluate.ts";
-import { gate } from "../gate.ts";
-import { computerUseQuestions, observationState, readAction } from "../computer-use.ts";
-import { choice, noul, score } from "../questions.ts";
-import { envJev, envLlm } from "../env.ts";
-import type { EvaluateRequest, State } from "../types.ts";
+import { AcpFramer, encodeAcp } from "./framing.ts";
+import { AcpProxy } from "./proxy.ts";
 import {
-  PROTOCOL_VERSION,
-  promptText,
-  type ContentBlock,
-  type JsonRpcId,
+  isJsonRpcNotification,
+  isJsonRpcRequest,
+  type JsonRpcMessage,
   type JsonRpcNotification,
   type JsonRpcRequest,
-  type JsonRpcResponse,
-  type SessionUpdate,
 } from "./protocol.ts";
+import { AcpSidecar } from "./sidecar.ts";
+import { defaultSessionDir, SessionStore } from "./session-store.ts";
+import { resolveUpstream, spawnCommand, type UpstreamSpec } from "./upstream.ts";
 
-function write(msg: JsonRpcResponse | JsonRpcNotification) {
-  const json = JSON.stringify(msg);
-  const payload = `Content-Length: ${Buffer.byteLength(json, "utf8")}\r\n\r\n${json}`;
-  process.stdout.write(payload);
+function writeStdout(msg: JsonRpcMessage): void {
+  process.stdout.write(encodeAcp(msg));
 }
 
-function notify(method: string, params: unknown) {
-  write({ jsonrpc: "2.0", method, params });
-}
-
-function reply(id: JsonRpcId, result: unknown) {
-  write({ jsonrpc: "2.0", id, result });
-}
-
-function fail(id: JsonRpcId, code: number, message: string) {
-  write({ jsonrpc: "2.0", id, error: { code, message } });
-}
-
-async function readLoop(onMessage: (msg: JsonRpcRequest | JsonRpcNotification) => Promise<void>) {
-  let buffer = Buffer.alloc(0);
+async function readStdin(onMessage: (msg: JsonRpcRequest | JsonRpcNotification) => Promise<void>): Promise<void> {
+  const framer = new AcpFramer();
   for await (const chunk of process.stdin) {
-    buffer = Buffer.concat([buffer, chunk as Buffer]);
-    while (true) {
-      const headerEnd = buffer.indexOf("\r\n\r\n");
-      if (headerEnd < 0) break;
-      const header = buffer.subarray(0, headerEnd).toString("utf8");
-      const match = header.match(/Content-Length:\s*(\d+)/i);
-      if (!match) {
-        buffer = buffer.subarray(headerEnd + 4);
-        continue;
-      }
-      const length = Number(match[1]);
-      const start = headerEnd + 4;
-      if (buffer.length < start + length) break;
-      const body = buffer.subarray(start, start + length).toString("utf8");
-      buffer = buffer.subarray(start + length);
-      const parsed = JSON.parse(body) as JsonRpcRequest | JsonRpcNotification;
-      await onMessage(parsed);
+    for (const parsed of framer.feed(chunk as Buffer)) {
+      const msg = parsed as JsonRpcMessage;
+      if (isJsonRpcRequest(msg) || isJsonRpcNotification(msg)) await onMessage(msg);
     }
   }
 }
 
-export async function serveAcp() {
-  const llm = envLlm();
-  const jev = envJev();
-  const sessions = new Map<string, { cwd?: string }>();
+export async function serveSidecar(store = new SessionStore(defaultSessionDir())): Promise<void> {
+  const sidecar = new AcpSidecar(writeStdout, store);
+  await readStdin((msg) => sidecar.dispatch(msg));
+}
 
-  await readLoop(async (msg) => {
-    if (!("id" in msg) || msg.id === undefined) {
-      if (msg.method === "session/cancel") return;
-      return;
-    }
-    const req = msg as JsonRpcRequest;
-    try {
-      if (req.method === "initialize") {
-        reply(req.id, {
-          protocolVersion: PROTOCOL_VERSION,
-          agentCapabilities: {
-            loadSession: false,
-            promptCapabilities: { image: false, audio: false, embeddedContext: true },
-          },
-          agentInfo: { name: "jevbridge", title: "Jevbridge", version: "0.1.0" },
-          authMethods: [],
-        });
-        return;
-      }
-      if (req.method === "authenticate") {
-        reply(req.id, {});
-        return;
-      }
-      if (req.method === "session/new") {
-        const sessionId = randomUUID();
-        const params = (req.params ?? {}) as { cwd?: string };
-        sessions.set(sessionId, { cwd: params.cwd });
-        reply(req.id, { sessionId });
-        return;
-      }
-      if (req.method === "session/prompt") {
-        const params = req.params as { sessionId: string; prompt: ContentBlock[] };
-        const text = promptText(params.prompt);
-        const computer = /click|refund|browser|screen|desktop|computer use|gui/i.test(text);
-        const evalReq: EvaluateRequest = {
-          state: computer
-            ? observationState({
-                goal: text,
-                app: "editor",
-                visible: ["Continue", "Cancel", "Back"],
-              })
-            : ({ user_prompt: text, cwd: sessions.get(params.sessionId)?.cwd ?? null } as State),
-          questions: computer
-            ? computerUseQuestions(["Continue", "Cancel", "Back"])
-            : {
-                task: choice("What is this turn?", {
-                  question: "Explanation or answer.",
-                  code_edit: "Change code.",
-                  computer_use: "Act on a GUI or browser.",
-                  terminal: "Run a shell command.",
-                }),
-                needs_permission: noul("Should the agent ask before acting?"),
-                risk: score("How risky is an unsupervised action?", [
-                  "Read-only",
-                  "Local reversible edit",
-                  "Shared or production effect",
-                ]),
-              },
-          backend: "auto",
-          jev,
-          llm,
-        };
-
-        notify("session/update", {
-          sessionId: params.sessionId,
-          update: {
-            sessionUpdate: "tool_call",
-            toolCallId: "jev_decide",
-            title: "Jevbridge decide",
-            kind: "other",
-            status: "in_progress",
-          } satisfies SessionUpdate,
-        });
-
-        const decision = await evaluate(evalReq);
-        const g = gate(decision.answers, {
-          choiceId: computer ? "next_action" : "task",
-          destructiveId: computer ? "is_destructive" : undefined,
-        });
-
-        notify("session/update", {
-          sessionId: params.sessionId,
-          update: {
-            sessionUpdate: "tool_call_update",
-            toolCallId: "jev_decide",
-            status: "completed",
-            content: [
-              {
-                type: "content",
-                content: {
-                  type: "text",
-                  text: JSON.stringify({ answers: decision.answers, gate: g }, null, 2),
-                },
-              },
-            ],
-          } satisfies SessionUpdate,
-        });
-
-        const line = computer
-          ? `Next action ${readAction(decision.answers)} · gate ${g.action} · ${g.reason}`
-          : `Task routed · gate ${g.action} · ${g.reason}`;
-
-        notify("session/update", {
-          sessionId: params.sessionId,
-          update: {
-            sessionUpdate: "agent_message_chunk",
-            content: { type: "text", text: line },
-          } satisfies SessionUpdate,
-        });
-
-        reply(req.id, { stopReason: "end_turn" });
-        return;
-      }
-      fail(req.id, -32601, `Method not found: ${req.method}`);
-    } catch (err) {
-      fail(req.id, -32603, err instanceof Error ? err.message : "Internal error");
-    }
+export async function serveProxy(upstream: UpstreamSpec, store = new SessionStore(defaultSessionDir())): Promise<void> {
+  const child = spawn(spawnCommand(upstream.command), upstream.args, {
+    stdio: ["pipe", "pipe", "inherit"],
+    env: process.env,
+    windowsHide: true,
   });
+  if (!child.stdin || !child.stdout) {
+    throw new Error("failed to spawn upstream ACP agent");
+  }
+  const proxy = new AcpProxy({
+    toClient: writeStdout,
+    toUpstream: (msg) => {
+      child.stdin!.write(encodeAcp(msg));
+    },
+    store,
+  });
+  const upFramer = new AcpFramer();
+  let chain = Promise.resolve();
+  const enqueue = (work: () => Promise<void>) => {
+    chain = chain.then(work, work);
+  };
+  child.stdout.on("data", (chunk: Buffer) => {
+    enqueue(async () => {
+      for (const parsed of upFramer.feed(chunk)) {
+        await proxy.onUpstream(parsed as JsonRpcMessage);
+      }
+    });
+  });
+  child.on("exit", (code) => {
+    process.exit(code ?? 1);
+  });
+  const clientFramer = new AcpFramer();
+  for await (const chunk of process.stdin) {
+    const messages = clientFramer.feed(chunk as Buffer);
+    await new Promise<void>((resolve, reject) => {
+      enqueue(async () => {
+        try {
+          for (const parsed of messages) {
+            await proxy.onClient(parsed as JsonRpcMessage);
+          }
+          resolve();
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+  }
+  child.kill();
+}
+
+export async function serveAcp(options: { upstream?: UpstreamSpec; store?: SessionStore } = {}): Promise<void> {
+  const store = options.store ?? new SessionStore(defaultSessionDir());
+  const upstream = options.upstream ?? resolveUpstream(process.argv.slice(3), process.env);
+  if (upstream) {
+    await serveProxy(upstream, store);
+    return;
+  }
+  await serveSidecar(store);
 }

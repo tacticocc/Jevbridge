@@ -11,7 +11,8 @@
       "env": {
         "TYPESAFE_API_KEY": "ts_...",
         "JEVBRIDGE_LLM": "xai",
-        "XAI_API_KEY": "xai-..."
+        "XAI_API_KEY": "xai-...",
+        "JEVBRIDGE_SESSION_DIR": "/absolute/path/to/Jevbridge-sessions"
       }
     }
   }
