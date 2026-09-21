@@ -1,3 +1,5 @@
+import { AGENT_NAME, AGENT_TITLE, VERSION } from "../version.ts";
+
 export type JsonRpcId = string | number | null;
 
 export type JsonRpcRequest = {
@@ -30,9 +32,9 @@ export const MCP_PROTOCOL_VERSIONS = [
 export const MCP_PROTOCOL_VERSION = "2025-03-26";
 
 export const SERVER_INFO = {
-  name: "jevbridge",
-  title: "Jevbridge",
-  version: "0.1.0",
+  name: AGENT_NAME,
+  title: AGENT_TITLE,
+  version: VERSION,
 };
 
 export const SERVER_INSTRUCTIONS =

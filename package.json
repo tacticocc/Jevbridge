@@ -1,6 +1,6 @@
 {
   "name": "@tacticocc/jevbridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ACP and MCP adapter that bridges TypeSafe Jev with any LLM for computer use and typed decisions.",
   "type": "module",
   "license": "MIT",
@@ -21,11 +21,14 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gamesonrblx/Jevbridge.git"
+    "url": "git+https://github.com/tacticocc/Jevbridge.git"
   },
-  "homepage": "https://github.com/gamesonrblx/Jevbridge",
+  "homepage": "https://github.com/tacticocc/Jevbridge",
   "bugs": {
-    "url": "https://github.com/gamesonrblx/Jevbridge/issues"
+    "url": "https://github.com/tacticocc/Jevbridge/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=22"
@@ -34,7 +37,8 @@
     "mcp": "node --experimental-strip-types src/cli.ts mcp",
     "acp": "node --experimental-strip-types src/cli.ts acp",
     "eval": "node --experimental-strip-types src/cli.ts eval",
-    "test": "node --experimental-strip-types --test src/*.test.ts src/**/*.test.ts"
+    "test": "node --experimental-strip-types --test src/*.test.ts src/**/*.test.ts",
+    "prepublishOnly": "node --experimental-strip-types --test src/*.test.ts src/**/*.test.ts"
   },
   "keywords": [
     "jev",

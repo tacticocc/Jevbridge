@@ -55,4 +55,9 @@ See `examples/claude-desktop.json`, `examples/cursor.mcp.json`, `examples/codex.
 
 ## ACP
 
-`node --experimental-strip-types src/cli.ts acp` speaks Agent Client Protocol on stdio. Point Zed / JetBrains `agent_servers` at it. The generating agent stays the LLM; Jevbridge is the decision sidecar.
+`node --experimental-strip-types src/cli.ts acp` speaks Agent Client Protocol on stdio. Point Zed / JetBrains `agent_servers` at it.
+
+- Sidecar mode decides the turn with Jev and persists sessions (`session/load`, `session/resume`, `session/list`).
+- Proxy mode: `jevbridge acp --upstream claude` or `--upstream codex`. Forwards the generating ACP agent and intercepts tool calls (`allow` / `ask` / `deny`).
+
+The generating agent stays the LLM; Jevbridge is the decision sidecar.
