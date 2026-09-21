@@ -19,7 +19,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Trusted publishing needs npm 11.5.1+. Node 22 ships npm 10.
+          node-version: 24
           registry-url: https://registry.npmjs.org
       - name: Typecheck
         run: |
@@ -28,6 +29,6 @@ jobs:
       - name: Test
         run: npm test
       - name: Publish
-        run: npm publish --access public --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        # No NODE_AUTH_TOKEN. An empty token blocks OIDC fallback.
+        # Provenance is automatic when publishing via trusted publishing.
+        run: npm publish --access public
