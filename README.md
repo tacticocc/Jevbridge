@@ -138,9 +138,9 @@ Jevbridge is a zero-dependency Node 22 library plus MCP and ACP stdio binaries. 
    git clone https://github.com/tacticocc/Jevbridge.git
    cd Jevbridge
    ```
-   The npm name is `@tacticocc/jevbridge`. After a release is published:
+   The npm name is `@tactico/jevbridge`. After a release is published:
    ```sh
-   npm install -g @tacticocc/jevbridge
+   npm install -g @tactico/jevbridge
    ```
 2. Install (no runtime npm dependencies)
    ```sh
@@ -373,7 +373,7 @@ Zed `settings.json` (Codex behind Jevbridge):
     "Jevbridge Codex": {
       "type": "custom",
       "command": "npx",
-      "args": ["-y", "@tacticocc/jevbridge", "acp", "--upstream", "codex"],
+      "args": ["-y", "@tactico/jevbridge", "acp", "--upstream", "codex"],
       "env": {
         "TYPESAFE_API_KEY": "ts_..."
       }
@@ -430,7 +430,7 @@ const action = readAction(result.answers);
 - [x] MCP stdio server (`jev_decide`, `jev_gate`, `jev_computer_use`, `jev_recipe`)
 - [x] Proxy an upstream ACP agent (Claude Code, Codex) and intercept tool calls
 - [x] Session load / resume
-- [ ] Published npm package `@tacticocc/jevbridge`
+- [ ] Published npm package `@tactico/jevbridge`
 - [x] Transfer this repository into the `tacticocc` organization
 
 See the [open issues](https://github.com/tacticocc/Jevbridge/issues) for a full list of proposed features (and known issues).

@@ -1,5 +1,5 @@
 {
-  "name": "@tacticocc/jevbridge",
+  "name": "@tactico/jevbridge",
   "version": "0.2.0",
   "description": "ACP and MCP adapter that bridges TypeSafe Jev with any LLM for computer use and typed decisions.",
   "type": "module",

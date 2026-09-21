@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   publish:
-    name: Publish @tacticocc/jevbridge
+    name: Publish @tactico/jevbridge
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
